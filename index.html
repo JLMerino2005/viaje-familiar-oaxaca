@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Control de Viaje Familiar - Autobús 45 Asientos</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <header>
+    <h1>🚌 Viaje Familiar Oaxaca</h1>
+    <p>Juquila ➔ Puerto Escondido ➔ Mitla ➔ Árbol del Tule</p>
+  </header>
+
+  <main class="main-grid">
+    <!-- PANEL DEL AUTOBÚS -->
+    <section class="card">
+      <h2>🚌 Distribución (45 Asientos)</h2>
+      <div class="bus-wrapper">
+        <div class="driver-cabin">
+          <span>Chofer 👨‍✈️</span>
+          <span>Entrada 🚪</span>
+        </div>
+        <div id="busGrid" class="bus-grid"></div>
+      </div>
+      
+      <div class="legend">
+        <span class="legend-item"><span class="dot available"></span> Libre</span>
+        <span class="legend-item"><span class="dot selected"></span> Elegido</span>
+        <span class="legend-item"><span class="dot occupied"></span> Ocupado</span>
+      </div>
+    </section>
+
+    <!-- PANEL DE CONTROL E ITINERARIO -->
+    <section class="card">
+      <div class="content-tabs">
+        <button id="btnTabRegistro" class="tab-btn active" onclick="switchTab('registro')">✍️ Asignar Asientos</button>
+        <button id="btnTabCronograma" class="tab-btn" onclick="switchTab('cronograma')">📅 Cronograma</button>
+      </div>
+
+      <!-- TAB 1: REGISTRO -->
+      <div id="tab-registro" class="tab-content active">
+        <!-- CALCULADORA Y BALANCE FINANCIERO -->
+        <div class="cost-calculator">
+          <div class="form-group margin-0">
+            <label for="totalCost">Costo Total del Autobús ($):</label>
+            <input type="number" id="totalCost" placeholder="Ej. 25000" min="0">
+          </div>
+          <div class="cost-summary">
+            <p>Por asiento (45): <strong id="costPerSeat">$0.00</strong></p>
+            <p>Por ocupado: <strong id="costPerOccupied">$0.00</strong></p>
+          </div>
+          <div class="financial-balance">
+            <div>Recaudado: <strong id="totalCollected" class="text-green">$0.00</strong></div>
+            <div>Por cobrar: <strong id="totalPending" class="text-red">$0.00</strong></div>
+          </div>
+        </div>
+
+        <h2>Asignar / Editar Familiar</h2>
+        <form id="passengerForm">
+          <div class="form-group">
+            <label for="seatNumber">Número de Asiento Seleccionado:</label>
+            <input type="number" id="seatNumber" readonly placeholder="Haz clic en un asiento del mapa 👈" required>
+          </div>
+          <div class="form-group">
+            <label for="passengerName">Nombre del Familiar:</label>
+            <input type="text" id="passengerName" placeholder="Ej. Tía María / Juanito" required>
+          </div>
+          <div class="form-group">
+            <label for="passengerPhone">Número de Contacto (Teléfono/WhatsApp):</label>
+            <input type="tel" id="passengerPhone" placeholder="Ej. 2221234567" required>
+          </div>
+          <div class="form-group">
+            <label for="passengerType">Tipo de Pasajero:</label>
+            <select id="passengerType">
+              <option value="Adulto">Adulto</option>
+              <option value="Niño">Niño / Niña</option>
+              <option value="Adulto Mayor">Adulto Mayor</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="paymentStatus">Estado del Pago:</label>
+            <select id="paymentStatus" onchange="toggleAmountInput()">
+              <option value="Pendiente">❌ Pendiente</option>
+              <option value="Anticipo">🟡 Anticipo / Abono Parcial</option>
+              <option value="Pagado">✅ Pagado Completo</option>
+            </select>
+          </div>
+          <div class="form-group" id="paidAmountGroup">
+            <label for="paidAmount">Monto Abonado ($):</label>
+            <input type="number" id="paidAmount" placeholder="Ej. 500" min="0" value="0" step="any">
+          </div>
+          <button type="submit" id="btnSubmitForm" class="btn">Guardar Asiento</button>
+        </form>
+
+        <div class="section-header">
+          <h2 class="section-subtitle">Lista de Pasajeros (<span id="totalRegistered">0</span>/45)</h2>
+          <div class="actions-bar">
+            <button type="button" class="btn btn-export" onclick="exportToCSV()">📊 Exportar Excel</button>
+            <button type="button" class="btn btn-print" onclick="window.print()">🖨️ Imprimir</button>
+          </div>
+        </div>
+
+        <!-- FILTRO DE BÚSQUEDA -->
+        <div class="form-group search-box">
+          <input type="text" id="searchInput" placeholder="🔍 Buscar por nombre, teléfono o asiento..." onkeyup="filterPassengers()">
+        </div>
+
+        <div class="table-container">
+          <table class="passenger-table">
+            <thead>
+              <tr>
+                <th>Asiento</th>
+                <th>Nombre</th>
+                <th>Contacto</th>
+                <th>Tipo</th>
+                <th>Abonado</th>
+                <th>Pago</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="passengerListBody">
+              <tr>
+                <td colspan="7" style="text-align: center; color: #94a3b8;">No hay asientos asignados aún.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TAB 2: CRONOGRAMA -->
+      <div id="tab-cronograma" class="tab-content">
+        <h2>Itinerario y Cronograma del Viaje</h2>
+        <div class="timeline">
+          
+          <div class="timeline-item">
+            <div class="time">DÍA 1 - PARADA 1</div>
+            <h3>Llegada a Santa Catarina Juquila</h3>
+            <p>Visita al Santuario de la Virgen de Juquila, tiempo para peticiones, misa y comida familiar tradicional.</p>
+          </div>
+
+          <div class="timeline-item">
+            <div class="time">DÍA 2 - PARADA 2</div>
+            <h3>Trayecto a Puerto Escondido</h3>
+            <p>Salida rumbo a la costa. Llegada a las playas (Zicatela / Carrizalillo / Puerto Angelito), tarde libre de descanso y cena familiar de mariscos.</p>
+          </div>
+
+          <div class="timeline-item">
+            <div class="time">DÍA 3 - PARADA 3</div>
+            <h3>Rumbo a la Zona Arqueológica de Mitla</h3>
+            <p>Recorrido hacia los valles centrales. Visita guiada a las ruinas prehispánicas de Mitla y compras de artesanías y textiles de la región.</p>
+          </div>
+
+          <div class="timeline-item">
+            <div class="time">DÍA 4 - PARADA 4</div>
+            <h3>El Histórico Árbol del Tule y Regreso</h3>
+            <p>Admiración del ahuehuete milenario en Santa María del Tule, foto familiar del recuerdo, almuerzo de despedida y retorno a casa.</p>
+          </div>
+
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
