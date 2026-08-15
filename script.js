@@ -1,3 +1,20 @@
+// CONFIGURACIÓN DE FIREBASE CON TUS CREDENCIALES EXACTAS
+const firebaseConfig = {
+  apiKey: "AIzaSyBLHw-5Rdxq-2DNTJTNuXOZOfFab68VnQI",
+  authDomain: "viaje-juquilita.firebaseapp.com",
+  databaseURL: "https://viaje-juquilita-default-rtdb.firebaseio.com",
+  projectId: "viaje-juquilita",
+  storageBucket: "viaje-juquilita.firebasestorage.app",
+  messagingSenderId: "213243430629",
+  appId: "1:213243430629:web:c8b3ffc05c260cd800f60c",
+  measurementId: "G-S9P6FLE2YF"
+};
+
+// Inicializar Firebase
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const busRef = db.ref('viaje_oaxaca');
+
 document.addEventListener('DOMContentLoaded', () => {
   const busGrid = document.getElementById('busGrid');
   const seatInput = document.getElementById('seatNumber');
@@ -17,19 +34,18 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnSubmitForm = document.getElementById('btnSubmitForm');
 
   let selectedSeatNumber = null;
+  let seatsData = {};
+  let totalBusCost = 0;
 
-  // Cargar datos guardados previamente
-  const seatsData = JSON.parse(localStorage.getItem('busFamiliaJuquila')) || {};
-  const savedCost = localStorage.getItem('costoAutobusJuquila') || '';
-
-  if (savedCost) {
-    totalCostInput.value = savedCost;
-  }
-
-  function saveToStorage() {
-    localStorage.setItem('busFamiliaJuquila', JSON.stringify(seatsData));
-    localStorage.setItem('costoAutobusJuquila', totalCostInput.value);
-  }
+  // ESCUCHAR EN TIEMPO REAL DESDE FIREBASE
+  busRef.on('value', (snapshot) => {
+    const data = snapshot.val() || {};
+    seatsData = data.asientos || {};
+    totalBusCost = data.costoTotal || 0;
+    
+    totalCostInput.value = totalBusCost > 0 ? totalBusCost : '';
+    renderBus();
+  });
 
   function renderBus() {
     busGrid.innerHTML = '';
@@ -90,9 +106,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Ocultar / Mostrar campo de monto abonado
   window.toggleAmountInput = function() {
     const status = paymentStatusSelect.value;
-    const totalCost = parseFloat(totalCostInput.value) || 0;
     const occupiedCount = Object.keys(seatsData).length || 1;
-    const estimatedCostPerOccupied = totalCost / occupiedCount;
+    const estimatedCostPerOccupied = totalBusCost / occupiedCount;
 
     if (status === 'Pendiente') {
       paidAmountInput.value = 0;
@@ -115,13 +130,11 @@ document.addEventListener('DOMContentLoaded', () => {
     paidAmountInput.value = item.amount || 0;
 
     btnSubmitForm.textContent = `Actualizar Asiento #${seatNum}`;
-    
-    // Enfocar el formulario
     passengerNameInput.focus();
     renderBus();
   };
 
-  // Guardar / Actualizar datos del familiar
+  // Guardar o Actualizar en Firebase
   passengerForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const seatNum = seatInput.value;
@@ -136,33 +149,33 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    seatsData[seatNum] = { name, phone, type, payment, amount };
-    saveToStorage();
-
-    passengerForm.reset();
-    paidAmountInput.value = 0;
-    selectedSeatNumber = null;
-    seatInput.value = '';
-    btnSubmitForm.textContent = "Guardar Asiento";
-
-    renderBus();
+    busRef.child(`asientos/${seatNum}`).set({
+      name,
+      phone,
+      type,
+      payment,
+      amount
+    }).then(() => {
+      passengerForm.reset();
+      paidAmountInput.value = 0;
+      selectedSeatNumber = null;
+      seatInput.value = '';
+      btnSubmitForm.textContent = "Guardar Asiento";
+    });
   });
 
-  // Liberar asiento
+  // Liberar asiento en Firebase
   window.removePassenger = function(seatNum) {
     if (confirm(`¿Deseas liberar el asiento ${seatNum}?`)) {
-      delete seatsData[seatNum];
-      saveToStorage();
-
-      if (selectedSeatNumber === seatNum) {
-        passengerForm.reset();
-        paidAmountInput.value = 0;
-        selectedSeatNumber = null;
-        seatInput.value = '';
-        btnSubmitForm.textContent = "Guardar Asiento";
-      }
-
-      renderBus();
+      busRef.child(`asientos/${seatNum}`).remove().then(() => {
+        if (selectedSeatNumber === seatNum) {
+          passengerForm.reset();
+          paidAmountInput.value = 0;
+          selectedSeatNumber = null;
+          seatInput.value = '';
+          btnSubmitForm.textContent = "Guardar Asiento";
+        }
+      });
     }
   };
 
@@ -225,8 +238,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   totalCostInput.addEventListener('input', () => {
-    calculateCosts();
-    saveToStorage();
+    const val = parseFloat(totalCostInput.value) || 0;
+    busRef.child('costoTotal').set(val);
   });
 
   // Filtro de búsqueda en la tabla
@@ -282,6 +295,4 @@ document.addEventListener('DOMContentLoaded', () => {
       tabRegistro.classList.remove('active');
     }
   };
-
-  renderBus();
 });
