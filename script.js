@@ -32,7 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const currentBusTitle = document.getElementById('currentBusTitle');
   const costLabelBus = document.getElementById('costLabelBus');
 
-  let currentBusKey = 'autobus_1'; // 'autobus_1' o 'autobus_2'
+  let currentBusKey = 'autobus_1';
   let selectedSeatNumber = null;
   let allBusesData = {
     autobus_1: { asientos: {}, costoTotal: 0 },
@@ -40,8 +40,39 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const dbRef = db.ref('viaje_oaxaca_doble');
+  const oldDbRef = db.ref('viaje_oaxaca');
 
-  // Escuchar toda la información de ambos camiones en tiempo real
+  // MIGRACIÓN AUTOMÁTICA DE DATOS ANTERIORES
+  oldDbRef.once('value').then((snap) => {
+    const oldData = snap.val();
+    const localSeats = JSON.parse(localStorage.getItem('busFamiliaJuquila')) || {};
+    const localCost = parseFloat(localStorage.getItem('costoAutobusJuquila')) || 0;
+
+    // Si había datos en la ruta anterior de Firebase o en localStorage
+    if (oldData && oldData.asientos) {
+      dbRef.child('autobus_1').transaction((current) => {
+        if (!current || !current.asientos) {
+          return {
+            asientos: oldData.asientos,
+            costoTotal: oldData.costoTotal || 0
+          };
+        }
+        return current;
+      });
+    } else if (Object.keys(localSeats).length > 0) {
+      dbRef.child('autobus_1').transaction((current) => {
+        if (!current || !current.asientos) {
+          return {
+            asientos: localSeats,
+            costoTotal: localCost
+          };
+        }
+        return current;
+      });
+    }
+  });
+
+  // ESCUCHAR EN TIEMPO REAL
   dbRef.on('value', (snapshot) => {
     const data = snapshot.val() || {};
     allBusesData.autobus_1 = data.autobus_1 || { asientos: {}, costoTotal: 0 };
