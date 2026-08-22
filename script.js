@@ -32,63 +32,49 @@ document.addEventListener('DOMContentLoaded', () => {
   const currentBusTitle = document.getElementById('currentBusTitle');
   const costLabelBus = document.getElementById('costLabelBus');
 
-  let currentBusKey = 'autobus_1';
+  let currentBusKey = 'autobus_1'; // 'autobus_1' o 'autobus_2'
   let selectedSeatNumber = null;
-  let allBusesData = {
-    autobus_1: { asientos: {}, costoTotal: 0 },
-    autobus_2: { asientos: {}, costoTotal: 0 }
-  };
+  
+  let dataAutobus1 = { asientos: {}, costoTotal: 0 };
+  let dataAutobus2 = { asientos: {}, costoTotal: 0 };
 
-  const dbRef = db.ref('viaje_oaxaca_doble');
-  const oldDbRef = db.ref('viaje_oaxaca');
+  // Nodo del Autobús 1 (donde están tus datos actuales)
+  const refBus1 = db.ref('viaje_oaxaca');
+  // Nodo del Autobús 2
+  const refBus2 = db.ref('viaje_oaxaca_bus2');
 
-  // MIGRACIÓN AUTOMÁTICA DE DATOS ANTERIORES
-  oldDbRef.once('value').then((snap) => {
-    const oldData = snap.val();
-    const localSeats = JSON.parse(localStorage.getItem('busFamiliaJuquila')) || {};
-    const localCost = parseFloat(localStorage.getItem('costoAutobusJuquila')) || 0;
-
-    // Si había datos en la ruta anterior de Firebase o en localStorage
-    if (oldData && oldData.asientos) {
-      dbRef.child('autobus_1').transaction((current) => {
-        if (!current || !current.asientos) {
-          return {
-            asientos: oldData.asientos,
-            costoTotal: oldData.costoTotal || 0
-          };
-        }
-        return current;
-      });
-    } else if (Object.keys(localSeats).length > 0) {
-      dbRef.child('autobus_1').transaction((current) => {
-        if (!current || !current.asientos) {
-          return {
-            asientos: localSeats,
-            costoTotal: localCost
-          };
-        }
-        return current;
-      });
+  // Escuchar cambios en Autobús 1 en vivo
+  refBus1.on('value', (snapshot) => {
+    const data = snapshot.val() || {};
+    dataAutobus1.asientos = data.asientos || {};
+    dataAutobus1.costoTotal = data.costoTotal || 0;
+    if (currentBusKey === 'autobus_1') {
+      renderCurrentBus();
     }
   });
 
-  // ESCUCHAR EN TIEMPO REAL
-  dbRef.on('value', (snapshot) => {
+  // Escuchar cambios en Autobús 2 en vivo
+  refBus2.on('value', (snapshot) => {
     const data = snapshot.val() || {};
-    allBusesData.autobus_1 = data.autobus_1 || { asientos: {}, costoTotal: 0 };
-    allBusesData.autobus_2 = data.autobus_2 || { asientos: {}, costoTotal: 0 };
-
-    renderCurrentBus();
+    dataAutobus2.asientos = data.asientos || {};
+    dataAutobus2.costoTotal = data.costoTotal || 0;
+    if (currentBusKey === 'autobus_2') {
+      renderCurrentBus();
+    }
   });
 
-  function getActiveBusData() {
-    return allBusesData[currentBusKey] || { asientos: {}, costoTotal: 0 };
+  function getActiveData() {
+    return currentBusKey === 'autobus_1' ? dataAutobus1 : dataAutobus2;
+  }
+
+  function getActiveRef() {
+    return currentBusKey === 'autobus_1' ? refBus1 : refBus2;
   }
 
   function renderCurrentBus() {
-    const busData = getActiveBusData();
-    const seatsData = busData.asientos || {};
-    const busCost = busData.costoTotal || 0;
+    const activeData = getActiveData();
+    const seatsData = activeData.asientos || {};
+    const busCost = activeData.costoTotal || 0;
 
     totalCostInput.value = busCost > 0 ? busCost : '';
     busGrid.innerHTML = '';
@@ -172,9 +158,9 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   window.toggleAmountInput = function() {
-    const busData = getActiveBusData();
-    const seatsData = busData.asientos || {};
-    const totalCost = busData.costoTotal || 0;
+    const activeData = getActiveData();
+    const seatsData = activeData.asientos || {};
+    const totalCost = activeData.costoTotal || 0;
     const status = paymentStatusSelect.value;
     const occupiedCount = Object.keys(seatsData).length || 1;
     const estimatedCostPerOccupied = totalCost / occupiedCount;
@@ -187,8 +173,8 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   window.editPassenger = function(seatNum) {
-    const busData = getActiveBusData();
-    const item = (busData.asientos || {})[seatNum];
+    const activeData = getActiveData();
+    const item = (activeData.asientos || {})[seatNum];
     if (!item) return;
 
     selectedSeatNumber = seatNum;
@@ -204,6 +190,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderCurrentBus();
   };
 
+  // Guardar en la base de datos
   passengerForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const seatNum = seatInput.value;
@@ -218,7 +205,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    dbRef.child(`${currentBusKey}/asientos/${seatNum}`).set({
+    getActiveRef().child(`asientos/${seatNum}`).set({
       name,
       phone,
       type,
@@ -233,10 +220,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // Liberar asiento en la base de datos
   window.removePassenger = function(seatNum) {
     const busName = currentBusKey === 'autobus_1' ? 'Autobús 1' : 'Autobús 2';
     if (confirm(`¿Deseas liberar el asiento ${seatNum} del ${busName}?`)) {
-      dbRef.child(`${currentBusKey}/asientos/${seatNum}`).remove().then(() => {
+      getActiveRef().child(`asientos/${seatNum}`).remove().then(() => {
         if (selectedSeatNumber === seatNum) {
           passengerForm.reset();
           paidAmountInput.value = 0;
@@ -302,9 +290,10 @@ document.addEventListener('DOMContentLoaded', () => {
     totalPendingSpan.textContent = `$${(totalPending > 0 ? totalPending : 0).toFixed(2)}`;
   }
 
+  // Guardar cambio de costo total directo en Firebase
   totalCostInput.addEventListener('input', () => {
     const val = parseFloat(totalCostInput.value) || 0;
-    dbRef.child(`${currentBusKey}/costoTotal`).set(val);
+    getActiveRef().child('costoTotal').set(val);
   });
 
   window.filterPassengers = function() {
@@ -318,8 +307,8 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   window.exportToCSV = function() {
-    const busData = getActiveBusData();
-    const seatsData = busData.asientos || {};
+    const activeData = getActiveData();
+    const seatsData = activeData.asientos || {};
     const keys = Object.keys(seatsData).sort((a, b) => a - b);
     
     if (keys.length === 0) {
