@@ -1,4 +1,3 @@
-// CONFIGURACIÓN DE FIREBASE CON TUS CREDENCIALES EXACTAS
 const firebaseConfig = {
   apiKey: "AIzaSyBLHw-5Rdxq-2DNTJTNuXOZOfFab68VnQI",
   authDomain: "viaje-juquilita.firebaseapp.com",
@@ -10,10 +9,8 @@ const firebaseConfig = {
   measurementId: "G-S9P6FLE2YF"
 };
 
-// Inicializar Firebase
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
-const busRef = db.ref('viaje_oaxaca');
 
 document.addEventListener('DOMContentLoaded', () => {
   const busGrid = document.getElementById('busGrid');
@@ -32,26 +29,41 @@ document.addEventListener('DOMContentLoaded', () => {
   const paidAmountInput = document.getElementById('paidAmount');
   const paymentStatusSelect = document.getElementById('paymentStatus');
   const btnSubmitForm = document.getElementById('btnSubmitForm');
+  const currentBusTitle = document.getElementById('currentBusTitle');
+  const costLabelBus = document.getElementById('costLabelBus');
 
+  let currentBusKey = 'autobus_1'; // 'autobus_1' o 'autobus_2'
   let selectedSeatNumber = null;
-  let seatsData = {};
-  let totalBusCost = 0;
+  let allBusesData = {
+    autobus_1: { asientos: {}, costoTotal: 0 },
+    autobus_2: { asientos: {}, costoTotal: 0 }
+  };
 
-  // ESCUCHAR EN TIEMPO REAL DESDE FIREBASE
-  busRef.on('value', (snapshot) => {
+  const dbRef = db.ref('viaje_oaxaca_doble');
+
+  // Escuchar toda la información de ambos camiones en tiempo real
+  dbRef.on('value', (snapshot) => {
     const data = snapshot.val() || {};
-    seatsData = data.asientos || {};
-    totalBusCost = data.costoTotal || 0;
-    
-    totalCostInput.value = totalBusCost > 0 ? totalBusCost : '';
-    renderBus();
+    allBusesData.autobus_1 = data.autobus_1 || { asientos: {}, costoTotal: 0 };
+    allBusesData.autobus_2 = data.autobus_2 || { asientos: {}, costoTotal: 0 };
+
+    renderCurrentBus();
   });
 
-  function renderBus() {
+  function getActiveBusData() {
+    return allBusesData[currentBusKey] || { asientos: {}, costoTotal: 0 };
+  }
+
+  function renderCurrentBus() {
+    const busData = getActiveBusData();
+    const seatsData = busData.asientos || {};
+    const busCost = busData.costoTotal || 0;
+
+    totalCostInput.value = busCost > 0 ? busCost : '';
     busGrid.innerHTML = '';
     let seatCounter = 1;
 
-    // Generar 10 filas de 4 asientos con pasillo central
+    // 10 filas de 4 asientos con pasillo central
     for (let row = 0; row < 10; row++) {
       for (let col = 1; col <= 5; col++) {
         if (col === 3) {
@@ -59,7 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
           aisle.classList.add('seat', 'aisle');
           busGrid.appendChild(aisle);
         } else {
-          createSeatButton(seatCounter);
+          createSeatButton(seatCounter, seatsData);
           seatCounter++;
         }
       }
@@ -67,15 +79,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Fila trasera de 5 asientos (41 al 45)
     for (let col = 1; col <= 5; col++) {
-      createSeatButton(seatCounter);
+      createSeatButton(seatCounter, seatsData);
       seatCounter++;
     }
 
-    updatePassengerList();
-    calculateCosts();
+    updatePassengerList(seatsData);
+    calculateCosts(seatsData, busCost);
   }
 
-  function createSeatButton(number) {
+  function createSeatButton(number, seatsData) {
     const btn = document.createElement('button');
     btn.classList.add('seat');
     btn.textContent = number;
@@ -90,24 +102,51 @@ document.addEventListener('DOMContentLoaded', () => {
 
     btn.addEventListener('click', () => {
       if (seatsData[number]) {
-        // Cargar en el formulario para editar si ya está ocupado
         editPassenger(number);
       } else {
         selectedSeatNumber = number;
         seatInput.value = number;
-        btnSubmitForm.textContent = "Guardar Asiento";
-        renderBus();
+        btnSubmitForm.textContent = `Guardar Asiento #${number}`;
+        renderCurrentBus();
       }
     });
 
     busGrid.appendChild(btn);
   }
 
-  // Ocultar / Mostrar campo de monto abonado
+  window.switchBus = function(busName) {
+    const btnBus1 = document.getElementById('btnBus1');
+    const btnBus2 = document.getElementById('btnBus2');
+
+    currentBusKey = busName === 'bus1' ? 'autobus_1' : 'autobus_2';
+    selectedSeatNumber = null;
+    passengerForm.reset();
+    paidAmountInput.value = 0;
+    seatInput.value = '';
+    btnSubmitForm.textContent = "Guardar Asiento";
+
+    if (busName === 'bus1') {
+      btnBus1.classList.add('active');
+      btnBus2.classList.remove('active');
+      currentBusTitle.textContent = "🚌 Distribución Autobús 1 (45 Asientos)";
+      costLabelBus.textContent = "Costo Autobús 1";
+    } else {
+      btnBus2.classList.add('active');
+      btnBus1.classList.remove('active');
+      currentBusTitle.textContent = "🚌 Distribución Autobús 2 (45 Asientos)";
+      costLabelBus.textContent = "Costo Autobús 2";
+    }
+
+    renderCurrentBus();
+  };
+
   window.toggleAmountInput = function() {
+    const busData = getActiveBusData();
+    const seatsData = busData.asientos || {};
+    const totalCost = busData.costoTotal || 0;
     const status = paymentStatusSelect.value;
     const occupiedCount = Object.keys(seatsData).length || 1;
-    const estimatedCostPerOccupied = totalBusCost / occupiedCount;
+    const estimatedCostPerOccupied = totalCost / occupiedCount;
 
     if (status === 'Pendiente') {
       paidAmountInput.value = 0;
@@ -116,9 +155,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
-  // Cargar datos en el formulario para editar
   window.editPassenger = function(seatNum) {
-    const item = seatsData[seatNum];
+    const busData = getActiveBusData();
+    const item = (busData.asientos || {})[seatNum];
     if (!item) return;
 
     selectedSeatNumber = seatNum;
@@ -131,10 +170,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     btnSubmitForm.textContent = `Actualizar Asiento #${seatNum}`;
     passengerNameInput.focus();
-    renderBus();
+    renderCurrentBus();
   };
 
-  // Guardar o Actualizar en Firebase
   passengerForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const seatNum = seatInput.value;
@@ -149,7 +187,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    busRef.child(`asientos/${seatNum}`).set({
+    dbRef.child(`${currentBusKey}/asientos/${seatNum}`).set({
       name,
       phone,
       type,
@@ -164,10 +202,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Liberar asiento en Firebase
   window.removePassenger = function(seatNum) {
-    if (confirm(`¿Deseas liberar el asiento ${seatNum}?`)) {
-      busRef.child(`asientos/${seatNum}`).remove().then(() => {
+    const busName = currentBusKey === 'autobus_1' ? 'Autobús 1' : 'Autobús 2';
+    if (confirm(`¿Deseas liberar el asiento ${seatNum} del ${busName}?`)) {
+      dbRef.child(`${currentBusKey}/asientos/${seatNum}`).remove().then(() => {
         if (selectedSeatNumber === seatNum) {
           passengerForm.reset();
           paidAmountInput.value = 0;
@@ -179,14 +217,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
-  // Actualizar tabla
-  function updatePassengerList() {
+  function updatePassengerList(seatsData) {
     passengerListBody.innerHTML = '';
     const keys = Object.keys(seatsData).sort((a, b) => a - b);
     totalRegisteredSpan.textContent = keys.length;
 
     if (keys.length === 0) {
-      passengerListBody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #94a3b8;">No hay asientos asignados aún.</td></tr>`;
+      passengerListBody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #94a3b8;">No hay asientos asignados aún en este autobús.</td></tr>`;
       return;
     }
 
@@ -216,11 +253,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Calculadora de costos divididos y balances
-  function calculateCosts() {
-    const total = parseFloat(totalCostInput.value) || 0;
+  function calculateCosts(seatsData, total) {
     const occupiedCount = Object.keys(seatsData).length;
-
     const perSeat = total / 45;
     const perOccupied = occupiedCount > 0 ? total / occupiedCount : 0;
 
@@ -239,10 +273,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   totalCostInput.addEventListener('input', () => {
     const val = parseFloat(totalCostInput.value) || 0;
-    busRef.child('costoTotal').set(val);
+    dbRef.child(`${currentBusKey}/costoTotal`).set(val);
   });
 
-  // Filtro de búsqueda en la tabla
   window.filterPassengers = function() {
     const query = document.getElementById('searchInput').value.toLowerCase();
     const rows = passengerListBody.getElementsByTagName('tr');
@@ -253,15 +286,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   };
 
-  // Exportar a Excel (CSV)
   window.exportToCSV = function() {
+    const busData = getActiveBusData();
+    const seatsData = busData.asientos || {};
     const keys = Object.keys(seatsData).sort((a, b) => a - b);
+    
     if (keys.length === 0) {
-      alert('No hay datos para exportar.');
+      alert('No hay datos para exportar en este autobús.');
       return;
     }
 
-    let csvContent = "data:text/csv;charset=utf-8,Asiento,Nombre,Contacto,Tipo,Estado de Pago,Monto Abonado\n";
+    const label = currentBusKey === 'autobus_1' ? 'Autobus_1' : 'Autobus_2';
+    let csvContent = `data:text/csv;charset=utf-8,Asiento,Nombre,Contacto,Tipo,Estado de Pago,Monto Abonado\n`;
     keys.forEach(seat => {
       const item = seatsData[seat];
       csvContent += `${seat},"${item.name}","${item.phone || ''}",${item.type},${item.payment || 'Pendiente'},$${item.amount || 0}\n`;
@@ -270,13 +306,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "lista_pasajeros_viaje_oaxaca.csv");
+    link.setAttribute("download", `pasajeros_${label}_viaje_oaxaca.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  // Cambio de pestañas
   window.switchTab = function(tabName) {
     const btnRegistro = document.getElementById('btnTabRegistro');
     const btnCronograma = document.getElementById('btnTabCronograma');

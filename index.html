@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Control de Viaje Familiar - Autobús 45 Asientos</title>
+  <title>Control de Viaje Familiar - 2 Autobuses</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -14,9 +14,14 @@
   </header>
 
   <main class="main-grid">
-    <!-- PANEL DEL AUTOBÚS -->
+    <!-- PANEL DE LOS AUTOBUSES -->
     <section class="card">
-      <h2>🚌 Distribución (45 Asientos)</h2>
+      <div class="content-tabs bus-selector-tabs">
+        <button id="btnBus1" class="tab-btn active" onclick="switchBus('bus1')">🚌 Autobús 1 (45 Asientos)</button>
+        <button id="btnBus2" class="tab-btn" onclick="switchBus('bus2')">🚌 Autobús 2 (45 Asientos)</button>
+      </div>
+
+      <h2 id="currentBusTitle">🚌 Distribución Autobús 1 (45 Asientos)</h2>
       <div class="bus-wrapper">
         <div class="driver-cabin">
           <span>Chofer 👨‍✈️</span>
@@ -44,7 +49,7 @@
         <!-- CALCULADORA Y BALANCE FINANCIERO -->
         <div class="cost-calculator">
           <div class="form-group margin-0">
-            <label for="totalCost">Costo Total del Autobús ($):</label>
+            <label for="totalCost"><span id="costLabelBus">Costo Autobús 1</span> ($):</label>
             <input type="number" id="totalCost" placeholder="Ej. 25000" min="0" inputmode="decimal">
           </div>
           <div class="cost-summary">
@@ -163,11 +168,11 @@
     </section>
   </main>
 
-  <!-- SDK DE FIREBASE (CONECTIVIDAD EN LA NUBE) -->
+  <!-- FIREBASE SDK -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
-  <!-- SCRIPT PRINCIPAL -->
+  <!-- JS PRINCIPAL -->
   <script src="script.js"></script>
 </body>
 </html>
