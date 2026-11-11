@@ -1,5 +1,5 @@
 const firebaseConfig = {
-  apiKey: "AIzaSyBLHw-5Rdxq-2DNTJTNuXOZOfFab68VnQI",
+  apiKey: "AIzaSyBLHw-5Rdxq-2DNTJTNuXOZOfFAb68VnQI",
   authDomain: "viaje-juquilita.firebaseapp.com",
   databaseURL: "https://viaje-juquilita-default-rtdb.firebaseio.com",
   projectId: "viaje-juquilita",
