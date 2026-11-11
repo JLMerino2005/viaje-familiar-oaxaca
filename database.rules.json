@@ -1,0 +1,6 @@
+{
+  "rules": {
+    ".read": "auth != null && (auth.uid === 'PEGA_AQUI_TU_UID' || auth.uid === 'PEGA_AQUI_EL_UID_DE_TU_MAMA')",
+    ".write": "auth != null && (auth.uid === 'PEGA_AQUI_TU_UID' || auth.uid === 'PEGA_AQUI_EL_UID_DE_TU_MAMA')"
+  }
+}

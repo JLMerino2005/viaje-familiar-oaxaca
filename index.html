@@ -11,7 +11,37 @@
   <header>
     <h1>🚌 Viaje Familiar Oaxaca</h1>
     <p>Juquila ➔ Puerto Escondido ➔ Mitla ➔ Árbol del Tule</p>
+    <div class="header-badges">
+      <span id="countdown" class="pill" hidden></span>
+      <span id="connStatus" class="pill">⏳ Conectando…</span>
+      <span id="userChip" class="pill user-chip" hidden>
+        👤 <span id="userEmail"></span>
+        <button type="button" id="btnLogout" class="btn-logout">Salir</button>
+      </span>
+    </div>
   </header>
+
+  <!-- 🔐 PANTALLA DE ENTRADA -->
+  <section id="loginScreen" class="card login-card" hidden>
+    <h2>🔐 Entrar al viaje</h2>
+    <form id="loginForm">
+      <div class="form-group">
+        <label for="loginEmail">Correo:</label>
+        <input type="email" id="loginEmail" autocomplete="username" required>
+      </div>
+      <div class="form-group">
+        <label for="loginPassword">Contraseña:</label>
+        <input type="password" id="loginPassword" autocomplete="current-password" required>
+      </div>
+      <button type="submit" id="btnLogin" class="btn">Entrar</button>
+      <p id="loginError" class="login-error" role="alert"></p>
+      <button type="button" id="btnForgot" class="link-btn">Olvidé mi contraseña</button>
+    </form>
+  </section>
+
+  <div id="appArea" hidden>
+  <!-- RESUMEN GENERAL DE AMBOS AUTOBUSES -->
+  <section id="globalStats" class="stats-strip" aria-label="Resumen general"></section>
 
   <main class="main-grid">
     <!-- PANEL DE LOS AUTOBUSES -->
@@ -30,18 +60,22 @@
         <div id="busGrid" class="bus-grid"></div>
       </div>
       
-      <div class="legend">
-        <span class="legend-item"><span class="dot available"></span> Libre</span>
-        <span class="legend-item"><span class="dot selected"></span> Elegido</span>
-        <span class="legend-item"><span class="dot occupied"></span> Ocupado</span>
+      <div class="legend" id="seatLegend">
+        <button type="button" class="legend-item" data-status="libre"><span class="dot available"></span> Libre <span class="count" data-count="libre">0</span></button>
+        <button type="button" class="legend-item" data-status="pagado"><span class="dot paid"></span> Pagado <span class="count" data-count="pagado">0</span></button>
+        <button type="button" class="legend-item" data-status="anticipo"><span class="dot partial"></span> Anticipo <span class="count" data-count="anticipo">0</span></button>
+        <button type="button" class="legend-item" data-status="pendiente"><span class="dot occupied"></span> Pendiente <span class="count" data-count="pendiente">0</span></button>
+        <span class="legend-hint">Toca un color para resaltar esos asientos · <span class="dot selected" style="display:inline-block;vertical-align:middle"></span> Elegido</span>
       </div>
     </section>
 
     <!-- PANEL DE CONTROL E ITINERARIO -->
     <section class="card">
-      <div class="content-tabs">
-        <button id="btnTabRegistro" class="tab-btn active" onclick="switchTab('registro')">✍️ Asignar Asientos</button>
-        <button id="btnTabCronograma" class="tab-btn" onclick="switchTab('cronograma')">📅 Cronograma</button>
+      <div class="content-tabs" id="mainTabs">
+        <button class="tab-btn active" data-tab="registro" onclick="switchTab('registro')">✍️ Asignar Asientos</button>
+        <button class="tab-btn" data-tab="mar" onclick="switchTab('mar')">🌊 Entrada al mar</button>
+        <button class="tab-btn" data-tab="abordaje" onclick="switchTab('abordaje')">✅ Pase de lista</button>
+        <button class="tab-btn" data-tab="cronograma" onclick="switchTab('cronograma')">📅 Cronograma</button>
       </div>
 
       <!-- TAB 1: REGISTRO -->
@@ -52,6 +86,10 @@
             <label for="totalCost"><span id="costLabelBus">Costo Autobús 1</span> ($):</label>
             <input type="number" id="totalCost" placeholder="Ej. 25000" min="0" inputmode="decimal">
           </div>
+          <div class="form-group margin-0">
+            <label for="pricePerPerson">Precio por persona ($):</label>
+            <input type="number" id="pricePerPerson" placeholder="Ej. 600" min="0" step="any" inputmode="decimal">
+          </div>
           <div class="cost-summary">
             <p>Por asiento (45): <strong id="costPerSeat">$0.00</strong></p>
             <p>Por ocupado: <strong id="costPerOccupied">$0.00</strong></p>
@@ -59,7 +97,12 @@
           <div class="financial-balance">
             <div>Recaudado: <strong id="totalCollected" class="text-green">$0.00</strong></div>
             <div>Por cobrar: <strong id="totalPending" class="text-red">$0.00</strong></div>
+            <div>Sin cubrir (asientos libres): <strong id="busShortfall">$0.00</strong></div>
           </div>
+          <div class="progress" title="Avance de pago del autobús">
+            <div id="progressBar" class="progress-bar"></div>
+          </div>
+          <p id="progressLabel" class="progress-label">Autobús pagado: 0%</p>
         </div>
 
         <h2>Asignar / Editar Familiar</h2>
@@ -102,6 +145,7 @@
         <div class="section-header">
           <h2 class="section-subtitle">Lista de Pasajeros (<span id="totalRegistered">0</span>/45)</h2>
           <div class="actions-bar">
+            <button type="button" class="btn btn-copy" onclick="copyListForWhatsApp()">📋 Copiar lista</button>
             <button type="button" class="btn btn-export" onclick="exportToCSV()">📊 Exportar Excel</button>
             <button type="button" class="btn btn-print" onclick="window.print()">🖨️ Imprimir</button>
           </div>
@@ -109,7 +153,15 @@
 
         <!-- FILTRO DE BÚSQUEDA -->
         <div class="form-group search-box">
-          <input type="text" id="searchInput" placeholder="🔍 Buscar por nombre, teléfono o asiento..." onkeyup="filterPassengers()">
+          <input type="text" id="searchInput" placeholder="🔍 Buscar por nombre, teléfono o asiento..." oninput="filterPassengers()">
+        </div>
+
+        <!-- FILTRO POR ESTADO DE PAGO -->
+        <div class="filter-chips" id="filterChips">
+          <button type="button" class="chip active" data-filter="all">Todos</button>
+          <button type="button" class="chip" data-filter="Pendiente">❌ Pendientes</button>
+          <button type="button" class="chip" data-filter="Anticipo">🟡 Anticipo</button>
+          <button type="button" class="chip" data-filter="Pagado">✅ Pagados</button>
         </div>
 
         <div class="table-container">
@@ -121,22 +173,95 @@
                 <th>Contacto</th>
                 <th>Tipo</th>
                 <th>Abonado</th>
+                <th>Saldo</th>
                 <th>Pago</th>
                 <th>Acciones</th>
               </tr>
             </thead>
             <tbody id="passengerListBody">
               <tr>
-                <td colspan="7" style="text-align: center; color: #94a3b8;">No hay asientos asignados aún.</td>
+                <td colspan="8" class="empty-row">No hay asientos asignados aún.</td>
               </tr>
             </tbody>
           </table>
         </div>
       </div>
 
+      <!-- TAB: ENTRADA AL MAR -->
+      <div id="tab-mar" class="tab-content">
+        <h2>🌊 Entrada al mar</h2>
+        <div class="cost-calculator">
+          <div class="form-group margin-0">
+            <label for="seaCost">Costo de la entrada por persona ($):</label>
+            <input type="number" id="seaCost" placeholder="Ej. 150" min="0" step="any" inputmode="decimal">
+          </div>
+          <div class="financial-balance">
+            <div>Total a juntar: <strong id="seaTotal">$0.00</strong></div>
+            <div>Recaudado: <strong id="seaCollected" class="text-green">$0.00</strong></div>
+            <div>Por cobrar: <strong id="seaPending" class="text-red">$0.00</strong></div>
+          </div>
+          <div class="progress" title="Avance de la entrada al mar">
+            <div id="seaProgressBar" class="progress-bar"></div>
+          </div>
+          <p id="seaProgressLabel" class="progress-label">0 de 0 personas han pagado</p>
+        </div>
+
+        <p class="help-text">La lista se llena sola con los pasajeros de los 2 autobuses. Escribe lo que dio cada quien o toca <strong>"Pagó todo"</strong>.</p>
+
+        <div class="form-group search-box">
+          <input type="text" id="seaSearch" placeholder="🔍 Buscar por nombre o asiento..." oninput="renderSea()">
+        </div>
+        <div class="filter-chips" id="seaChips">
+          <button type="button" class="chip active" data-filter="all">Todos</button>
+          <button type="button" class="chip" data-filter="Pendiente">❌ Pendientes</button>
+          <button type="button" class="chip" data-filter="Anticipo">🟡 Anticipo</button>
+          <button type="button" class="chip" data-filter="Pagado">✅ Pagados</button>
+        </div>
+
+        <div class="table-container tall">
+          <table class="passenger-table">
+            <thead>
+              <tr>
+                <th>Bus</th>
+                <th>Asiento</th>
+                <th>Nombre</th>
+                <th>Dio ($)</th>
+                <th>Saldo</th>
+                <th>Estado</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="seaBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TAB: PASE DE LISTA -->
+      <div id="tab-abordaje" class="tab-content">
+        <h2>✅ Pase de lista – <span id="boardingBusName">Autobús 1</span></h2>
+        <p class="help-text">Marca a cada persona cuando suba al camión. Usa el selector de autobús de arriba para cambiar de camión.</p>
+
+        <div class="boarding-summary">
+          <div class="boarding-count"><span id="boardedCount">0</span>/<span id="boardingTotal">0</span> a bordo</div>
+          <div class="progress"><div id="boardingBar" class="progress-bar"></div></div>
+          <p id="boardingMissing" class="boarding-missing"></p>
+        </div>
+
+        <div class="actions-bar boarding-actions">
+          <button type="button" class="btn btn-copy" onclick="copyMissing()">📋 Copiar faltantes</button>
+          <button type="button" class="btn btn-print" onclick="resetBoarding()">🔄 Nueva parada (reiniciar)</button>
+        </div>
+
+        <ul id="boardingList" class="boarding-list"></ul>
+      </div>
+
       <!-- TAB 2: CRONOGRAMA -->
       <div id="tab-cronograma" class="tab-content">
         <h2>Itinerario y Cronograma del Viaje</h2>
+        <div class="form-group">
+          <label for="departureDate">📆 Fecha y hora de salida:</label>
+          <input type="datetime-local" id="departureDate">
+        </div>
         <div class="timeline">
           
           <div class="timeline-item">
@@ -167,9 +292,11 @@
       </div>
     </section>
   </main>
+  </div>
 
   <!-- FIREBASE SDK -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
   <!-- JS PRINCIPAL -->
